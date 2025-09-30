@@ -1,0 +1,5 @@
+.venv/
+models/
+database_credentials.yaml
+table_cards
+test*
