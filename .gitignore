@@ -3,3 +3,5 @@ models/
 database_credentials.yaml
 table_cards
 test*
+__pycache__/
+*.pyc
