@@ -17,3 +17,13 @@ def load_db_credentials():
         return yaml.safe_load(file) #loads yaml as dictionary
     
 db_credentials = load_db_credentials()
+
+#validation for manual customer input
+def customer_name_validation():
+    while True:
+        user_input = input("Customer: ")
+        if user_input.strip().lower() in db_credentials.keys():
+            return user_input
+            break
+        else:
+            print(f"Unknown customer name. Choose from: {list(db_credentials.keys())}")

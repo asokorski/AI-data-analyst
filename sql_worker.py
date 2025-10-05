@@ -58,7 +58,7 @@ def execute_query(customer, query):
             cursor = connection.cursor()
             cursor.execute(query)
             result = cursor.fetchall()
-        return True, result
+        return result
     
     except cx_Oracle.DatabaseError as error:
         return False, str(error)
@@ -90,6 +90,8 @@ User question:
             clean_sql = clean_sql[idx:]
             break
 
-    print(f"\n{clean_sql}\n\nDo you want to execute the query?")
-
-    return clean_sql
+    decision = input(f"\n{clean_sql}\n\nDo you want to execute the query? ")
+    if decision == "yes":
+        return execute_query(customer, clean_sql)
+    else:
+        return False

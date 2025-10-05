@@ -1,7 +1,7 @@
 import requests
 import sys
 import json
-from support_functions import jade_color, reset_color, db_credentials, profile_path
+from support_functions import jade_color, reset_color, profile_path, customer_name_validation
 from sql_worker import sqlcoder_reasoning
 
 
@@ -51,6 +51,8 @@ with open(profile_path, "r", encoding="utf-8") as profile:
 messages = [{"role": "system", "content": profile_prompt}]
 history_limit = 20
 
+#input for the customer name
+customer = customer_name_validation()
 
 # --- chat loop ---
 while True:
@@ -64,30 +66,14 @@ while True:
     #checking each prompt if starts with !SQL, if so then treat as a question to sqlcoder
     sqlcoder_key_phrase = "!sql"
     if user_input.lower().strip().startswith(sqlcoder_key_phrase):
-        customers = [] #customer names found in prompt
-        for customer_name in db_credentials.keys():
-            if customer_name.lower() in user_input.lower():
-                customers.append(customer_name)
-
-        if len(customers) == 1:
-            customer = customers[0]
-            plain_query = user_input.strip("!SQLsql").strip() #strip "!SQL" regardless of letter case
-            sqlcoder_response = sqlcoder_reasoning(customer, plain_query) #and pass to SQLCoder
-            messages.append({'role': 'user', 'content': f"""
-                             The following question has been asked to the SQL reasoning tool:
-                             \n"{plain_query}"\n
-                             The query results from the tool are:
-                             \n"{sqlcoder_response}"\n
-                             Please show me the results in plain language"""}) #append the user prompt with query results
-
-        elif len(customers) > 1:
-            print(f"{jade_color}Specify a single customer name please.")
-            break #LOGIC TO BE ADDED
-
-        else:
-            print(f"{jade_color}Specify the customer name please.")
-            break #LOGIC TO BE ADDED
-
+        plain_query = user_input.strip("!SQLsql").strip() #strip "!SQL" regardless of letter case
+        sqlcoder_response = sqlcoder_reasoning(customer, plain_query) #and pass to SQLCoder
+        messages.append({'role': 'user', 'content': f"""
+                            The following question has been asked to the SQL reasoning tool:
+                            \n"{plain_query}"\n
+                            The query results from the tool are:
+                            \n"{sqlcoder_response}"\n
+                            Please show me the results in plain language"""}) #append the user prompt with query results
     else: #if no !SQL prompt then append user prompt as regular
         messages.append({"role": "user", "content": user_input})
 
