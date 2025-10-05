@@ -1,17 +1,52 @@
 import oracledb as cx_Oracle
-import yaml
+from support_functions import db_credentials, table_cards_path
 import os
+import json
+import transformers
+from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
+#silence warnings and progress bar
+transformers.utils.logging.set_verbosity_error()
+transformers.utils.logging.set_verbosity_error()
+transformers.utils.logging.disable_progress_bar()
 
-#customer to be provided as an input
-#query to be provided as output from SqlCoder
 
-#loading the yaml with credentials
-def load_db_credentials():
-    credentials_path = os.path.join(os.path.dirname(__file__), "database_credentials.yaml")
-    with open(credentials_path, "r") as file:
-        return yaml.safe_load(file) #loads yaml as dictionary
+#loading the table_cards
+with open(table_cards_path, "r", encoding="utf-8") as table_cards:
+    table_cards_prompt = table_cards.read().strip()
 
-db_credentials = load_db_credentials()
+
+#model configuration
+MODEL_PATH = "./models/sqlcoder-7b"
+_model = None
+_tokenizer = None
+_sqlgen = None
+
+
+#load SQLCoder model and tokenizer once
+def _load_sqlcoder():
+    global _model, _tokenizer, _sqlgen
+
+    if _sqlgen is None:
+        os.environ["HF_HUB_OFFLINE"] = "1"
+        os.environ["TRANSFORMERS_OFFLINE"] = "1"
+
+        print("Loading SQLCoder model into memory...")
+
+        _tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH, local_files_only=True)
+        _model = AutoModelForCausalLM.from_pretrained(
+            MODEL_PATH,
+            local_files_only=True,
+            device_map="cpu",
+            dtype="auto")
+        
+        _sqlgen = pipeline(
+            "text-generation",
+            model=_model,
+            tokenizer=_tokenizer,
+            device_map="cpu")
+
+    return _sqlgen
+
 
 def execute_query(customer, query):
     try:
@@ -27,3 +62,34 @@ def execute_query(customer, query):
     
     except cx_Oracle.DatabaseError as error:
         return False, str(error)
+    
+
+#main function for reasoning
+def sqlcoder_reasoning(customer, plain_query):
+    sqlgen = _load_sqlcoder() #ensure that the model is loaded once
+
+    prompt = f"""You are an expert Oracle SQL generator.
+Return only SQL code - no explanations, no markdown, no commentary.
+
+Database schema:
+{table_cards_prompt}
+
+User question:
+{plain_query}
+"""
+
+    result = sqlgen(prompt, max_new_tokens=200, do_sample=False)[0]["generated_text"]
+
+    #remove any prefix or markdown formatting to clean the output
+    clean_sql = (result.replace("```sql", "").replace("```", "").replace("SQL:", "").strip())
+
+    # Try to extract starting from first SQL keyword
+    for keyword in ["SELECT", "WITH"]:
+        idx = clean_sql.upper().find(keyword)
+        if idx != -1:
+            clean_sql = clean_sql[idx:]
+            break
+
+    print(f"\n{clean_sql}\n\nDo you want to execute the query?")
+
+    return clean_sql
